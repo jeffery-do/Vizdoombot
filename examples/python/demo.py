@@ -126,9 +126,9 @@ calc = RewardCalculator()
 random_actions = False
 nn = NeuralNet()
 
-game.set_vizdoom_path("../../bin/vizdoom")
-game.set_doom_game_path("../../scenarios/freedoom2.wad")
-game.set_doom_scenario_path("../../scenarios/basic.wad")
+game.set_vizdoom_path("../../../ViZDoom/bin/vizdoom")
+game.set_doom_game_path("../../../ViZDoom/scenarios/freedoom2.wad")
+game.set_doom_scenario_path("../../../ViZDoom/scenarios/basic.wad")
 game.set_doom_map("map01")
 game.set_screen_resolution(ScreenResolution.RES_320X240)
 game.set_screen_format(ScreenFormat.RGB24)
