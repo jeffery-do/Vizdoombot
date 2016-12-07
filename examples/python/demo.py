@@ -62,7 +62,7 @@ class RewardCalculator():
             print("KILLED ITTTTTTT")
             print("KILLED ITTTTTTT")
             print("KILLED ITTTTTTT")
-            cur_reward += 1000 * new_kills
+            cur_reward += 2000 * new_kills
 
         # Health
         cur_health = game.get_game_variable(GameVariable.HEALTH)
@@ -97,7 +97,7 @@ class RewardCalculator():
         self.prev_ammo = game.get_game_variable(GameVariable.SELECTED_WEAPON_AMMO)
         self.running_total = 0
 
-FILENAME = "our_model.h5"
+FILENAME = "our_epsilon_model.h5"
 class NeuralNet():
     def __init__(self):
         if os.path.exists(FILENAME):
@@ -107,13 +107,10 @@ class NeuralNet():
             print("Building from scratch")
 
             self.model = Sequential()
-            self.model.add(Convolution2D(64, 16, 16, border_mode="same", input_shape=(30, 45, 3)))
-            self.model.add(Activation("relu"))
-            self.model.add(Convolution2D(32, 16, 16, border_mode="same"))
+            self.model.add(Convolution2D(32, 3, 3, border_mode="same", input_shape=(30, 45, 3)))
             self.model.add(Activation("relu"))
             self.model.add(Flatten())
             self.model.add(Dense(32, activation="sigmoid", init="uniform"))
-            self.model.add(Dense(32))
             self.model.add(Dense(3))
             self.model.compile(loss="mse", optimizer="rmsprop")
     def save(self):
@@ -166,7 +163,7 @@ game.set_episode_start_time(10)
 game.set_window_visible(True)
 
 # Turns on the sound. (turned off by default)
-game.set_sound_enabled(True)
+game.set_sound_enabled(False)
 
 # Sets the livin reward (for each move) to -1
 game.set_living_reward(-1)
@@ -194,17 +191,17 @@ actions = [
 # Sets time that will pause the engine after each action.
 # Without this everything would go too fast for you to keep track of what's happening.
 # 0.05 is quite arbitrary, nice to watch with my hardware setup. 
-#sleep_time = 0.000
-sleep_time = 0.028
+sleep_time = 0.000
+#sleep_time = 0.028
 
-episodes = 5000
-epsilon = 1.0
+episodes = 1000
+epsilon = 0.50
 gamma = 0.99
 print("Total Reward:", calc.get_total_reward())
 num_kills = 0
 for i in range(episodes):
-    if i % 1000 == 0:
-        epsilon -= 0.05
+    #epsilon = 1 - i / episodes
+    epsilon = 0.1
     print("Episode #" + str(i + 1))
     game.new_episode()
     calc.reset(game)
@@ -212,6 +209,7 @@ for i in range(episodes):
     # Gets the state
     state = game.get_state()
     n = 0
+    killed_this_episode = False
     while not game.is_episode_finished():
         n += 1
 
@@ -222,8 +220,10 @@ for i in range(episodes):
         qvals = nn.model.predict([screen_buf], batch_size=1)
         if np.random.rand() < epsilon:
             action_ndx = np.random.randint(0,3)
+            print("%.3f:RANDOM:" % epsilon, action_ndx)
         else:
             action_ndx = (np.argmax(qvals))
+            print("%.3f:ARGMAX:" % epsilon, action_ndx)
 
         # Perform Action
         try:
@@ -245,7 +245,7 @@ for i in range(episodes):
 
             update = reward + (gamma * max_q)
             y[0][action_ndx] = update
-            #nn.model.fit([screen_buf], y, batch_size=1, verbose=0)
+            nn.model.fit([screen_buf], y, batch_size=1, verbose=0)
             state = new_state
 
 
@@ -264,8 +264,12 @@ for i in range(episodes):
         print("Update:", update)
         print("Action:", ["Left","Right","Shoot"][action_ndx])
         print("Total Reward:", calc.get_total_reward())
-        print("KILLCOUNT: %s" % game.get_game_variable(GameVariable.KILLCOUNT))
-        num_kills = game.get_game_variable(GameVariable.KILLCOUNT)
+        if calc.prev_killcount > 0 and not killed_this_episode:
+            num_kills += calc.prev_killcount
+            killed_this_episode = True
+        print("KILLCOUNT:", calc.prev_killcount)
+        print("Num Kills:", num_kills)
+        print("Num Episodes:", i)
         print("=====================")
 
         if sleep_time > 0:
