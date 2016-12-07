@@ -160,7 +160,7 @@ game.set_episode_timeout(300)
 game.set_episode_start_time(10)
 
 # Makes the window appear (turned on by default)
-game.set_window_visible(True)
+game.set_window_visible(False)
 
 # Turns on the sound. (turned off by default)
 game.set_sound_enabled(False)
@@ -200,8 +200,8 @@ gamma = 0.99
 print("Total Reward:", calc.get_total_reward())
 num_kills = 0
 for i in range(episodes):
-    #epsilon = 1 - i / episodes
-    epsilon = 0.1
+    #epsilon = 0.1
+    epsilon = 1 - i / episodes
     print("Episode #" + str(i + 1))
     game.new_episode()
     calc.reset(game)
