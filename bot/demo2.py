@@ -1,16 +1,10 @@
 #! /usr/bin/env python3
 
-from vizdoom import DoomGame
+
 from vizdoom import Button
 from vizdoom import GameVariable
-from vizdoom import Mode
-from vizdoom import ScreenFormat
-from vizdoom import ScreenResolution
 
-from random import choice
-from time import sleep
-
-import keras
+import itertools as it
 from keras.models import Sequential
 from keras.models import load_model
 from keras.layers.convolutional import Convolution2D
@@ -18,214 +12,106 @@ from keras.layers.core import Activation
 from keras.layers.core import Flatten
 from keras.layers.core import Dense
 
-import skimage.color, skimage.transform
 import numpy as np
 
 import sys
 import os
 
-resolution = (30, 45)
-def preprocess(img):
-    new_img = skimage.transform.resize(img, resolution)
-    new_img = new_img.astype(np.float32)
-    new_img = np.reshape(new_img, (1, new_img.shape[0], new_img.shape[1], new_img.shape[2]))
-    return new_img
-
-class RewardCalculator():
-    def __init__(self):
-        self.running_total = 0
-
-    def calc_reward(self, game):
-
-        # Assume Action Performed
-        cur_reward = -5
-
-        # Kills
-        cur_killcount = game.get_game_variable(GameVariable.KILLCOUNT)
-        new_kills = cur_killcount - self.prev_killcount
-        if new_kills > 0:
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            print("KILLED ITTTTTTT")
-            cur_reward += 1000 * new_kills
-
-        # Health
-        cur_health = game.get_game_variable(GameVariable.HEALTH)
-        diff_health = cur_health - self.prev_health
-        if diff_health > 0:
-            cur_reward += 10 * diff_health
-        elif diff_health < 0:
-            cur_reward += 20 * diff_health
-
-        # Ammo
-        cur_ammo = game.get_game_variable(GameVariable.SELECTED_WEAPON_AMMO)
-        diff_ammo = cur_ammo - self.prev_ammo
-        if diff_ammo > 0:
-            cur_reward += 10 * diff_ammo
-        elif diff_ammo < 0:
-            cur_reward += 100 * diff_ammo
-
-
-        # Store This State
-        self.prev_killcount = cur_killcount
-        self.prev_health = cur_health
-        self.prev_ammo = cur_ammo
-
-        # Return Running Total
-        self.running_total += cur_reward
-        return cur_reward
-    def get_total_reward(self):
-        return self.running_total
-    def reset(self, game):
-        self.prev_killcount = game.get_game_variable(GameVariable.KILLCOUNT)
-        self.prev_health = game.get_game_variable(GameVariable.HEALTH)
-        self.prev_ammo = game.get_game_variable(GameVariable.SELECTED_WEAPON_AMMO)
-        self.running_total = 0
+from bot.reward import RewardCalculator
+from bot import doomgame
+from bot.image import preprocess
+from bot.memory import ReplayMemory
 
 FILENAME = "our_model.h5"
+resolution = (30, 45)
+
 class NeuralNet():
-    def __init__(self):
+    def __init__(self, gamma, output_dim):
+        self.gamma = gamma
         if os.path.exists(FILENAME):
             print("Loading from %s" % FILENAME)
             self.model = load_model(FILENAME)
         else:
             print("Building from scratch")
-
             self.model = Sequential()
-            self.model.add(Convolution2D(64, 16, 16, border_mode="same", input_shape=(30, 45, 3)))
-            self.model.add(Activation("relu"))
-            self.model.add(Convolution2D(32, 16, 16, border_mode="same"))
+            self.model.add(Convolution2D(32, 3, 3, border_mode="same", input_shape=(30, 45, 3)))
             self.model.add(Activation("relu"))
             self.model.add(Flatten())
             self.model.add(Dense(32, activation="sigmoid", init="uniform"))
-            self.model.add(Dense(32))
-            self.model.add(Dense(3))
+            self.model.add(Dense(output_dim))
             self.model.compile(loss="mse", optimizer="rmsprop")
 
-    def learn(self, s1, s2, a, reward, terminal):
+    def get_learn_val(self, s1, s2, a, reward, terminal):
+        qvals = nn.model.predict([s1], batch_size=1)
         y = np.zeros((1, 3))
         y[:] = qvals[:]
         if not terminal:
-            new_qvals = nn.model.predict([new_screen_buf], batch_size=1)
+            new_qvals = nn.model.predict([s2], batch_size=1)
             max_q = np.max(new_qvals)
-            update = reward + (gamma * max_q)
+            update = reward + (self.gamma * max_q)
         else:
             update = reward
         y[0][action_ndx] = update
-        self.model.fit([s1], y, batch_size=1, verbose=0)
+        return y
+
+    def learn_batch(self, s1_batch, s2_batch, a_batch, reward_batch, terminal_batch):
+        tuples = []
+        for i in range(len(s1_batch)):
+            tuples.append((s1_batch[i], s2_batch[i], a_batch[i], reward_batch[i], terminal_batch[i]))
+
+        correct_results = list(map(lambda s1, s2, a, reward, terminal: self.get_learn_val(s1, s2, a, reward, terminal), tuples))
+        self.model.fit(s1_batch, correct_results, batch_size=len(correct_results))
+
+    def learn_from_memory(self, memory, batch_size):
+        if memory.size > batch_size:
+            s1, a, s2, isterminal, r = memory.get_sample(batch_size)
+            self.learn_batch(s1, s2, a, r, isterminal)
 
     def save(self):
         print("Saving to %s" % FILENAME)
         self.model.save(FILENAME)
-        return
 
-game = DoomGame()
 calc = RewardCalculator()
-random_actions = False
-nn = NeuralNet()
+gamma = 0.99
 
-game.set_vizdoom_path("../../../ViZDoom/bin/vizdoom")
-game.set_doom_game_path("../../../ViZDoom/scenarios/freedoom2.wad")
-game.set_doom_scenario_path("../../../ViZDoom/scenarios/basic.wad")
-game.set_doom_map("map01")
-game.set_screen_resolution(ScreenResolution.RES_320X240)
-game.set_screen_format(ScreenFormat.RGB24)
-game.set_depth_buffer_enabled(True)
-game.set_labels_buffer_enabled(True)
-game.set_automap_buffer_enabled(True)
+buttons = [
+    Button.MOVE_LEFT,
+    Button.MOVE_RIGHT,
+    Button.ATTACK,
+    Button.MOVE_FORWARD,
+    Button.MOVE_BACKWARD
+]
 
-# Sets other rendering options
-game.set_render_hud(False)
-game.set_render_minimal_hud(False)
-game.set_render_crosshair(False)
-game.set_render_weapon(True)
-game.set_render_decals(False)
-game.set_render_particles(False)
-game.set_render_effects_sprites(False)
-
-# Adds buttons that will be allowed.
-game.add_available_button(Button.MOVE_LEFT)
-game.add_available_button(Button.MOVE_RIGHT)
-game.add_available_button(Button.ATTACK)
-game.add_available_button(Button.MOVE_FORWARD)
-game.add_available_button(Button.MOVE_BACKWARD)
-
-# Adds game variables that will be included in state.
-game.add_available_game_variable(GameVariable.AMMO2)
-game.add_available_game_variable(GameVariable.SELECTED_WEAPON)
-
-# Causes episodes to finish after 200 tics (actions)
-game.set_episode_timeout(300)
-
-# Makes episodes start after 10 tics (~after raising the weapon)
-game.set_episode_start_time(10)
-
-# Makes the window appear (turned on by default)
-game.set_window_visible(True)
-
-# Turns on the sound. (turned off by default)
-game.set_sound_enabled(True)
-
-# Sets the livin reward (for each move) to -1
-game.set_living_reward(-1)
-
-# Sets ViZDoom mode (PLAYER, ASYNC_PLAYER, SPECTATOR, ASYNC_SPECTATOR, PLAYER mode is default)
-game.set_mode(Mode.PLAYER)
-
-# Initialize the game. Further configuration won't take any effect from now on.
-#game.set_console_enabled(True)
-game.init()
-
-# Define some actions. Each list entry corresponds to declared buttons:
-# MOVE_LEFT, MOVE_RIGHT, ATTACK
-# 5 more combinations are naturally possible but only 3 are included for transparency when watching.
-actions = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 1, 0, 0]
-        #[0, 0, 0, 1, 0],
-        #[0, 0, 0, 0, 1]
-        ]
-
-# Run this many episodes
-
-# Sets time that will pause the engine after each action.
-# Without this everything would go too fast for you to keep track of what's happening.
-# 0.05 is quite arbitrary, nice to watch with my hardware setup.
-#sleep_time = 0.000
-sleep_time = 0.028
-
+batch_size = 64
 episodes = 5000
 epsilon = 1.0
-gamma = 0.99
+
+game = doomgame.init(buttons)
+num_actions = game.get_available_buttons_size()
+actions = [list(a) for a in it.product([0, 1], repeat=num_actions)]
+memory = ReplayMemory(10000, resolution)
+nn = NeuralNet(gamma, num_actions)
+
 print("Total Reward:", calc.get_total_reward())
 num_kills = 0
+
+
+
 for i in range(episodes):
     if i % 1000 == 0:
         epsilon -= 0.05
     print("Episode #" + str(i + 1))
     game.new_episode()
     calc.reset(game)
-
     # Gets the state
     state = game.get_state()
-    n = 0
     while not game.is_episode_finished():
-        n += 1
-
         # Which consists of:
-        screen_buf = preprocess(state.screen_buffer)
-
+        screen_buf = preprocess(state.screen_buffer, resolution)
         # Guess Q
         qvals = nn.model.predict([screen_buf], batch_size=1)
         if np.random.rand() < epsilon:
-            action_ndx = np.random.randint(0,3)
+            action_ndx = np.random.randint(0, num_actions)
         else:
             action_ndx = (np.argmax(qvals))
 
@@ -239,34 +125,21 @@ for i in range(episodes):
         reward = calc.calc_reward(game)
         if not game.is_episode_finished():
             new_state = game.get_state()
-            new_screen_buf = preprocess(new_state.screen_buffer)
-            nn.learn(screen_buf, new_screen_buf, action_ndx, reward, False)
+            new_screen_buf = preprocess(new_state.screen_buffer, resolution)
+            memory.add_transition(screen_buf, new_screen_buf, action_ndx, reward, False)
             state = new_state
         else:
-            nn.learn(screen_buf, None, action_ndx, reward, True)
+            memory.add_transition(screen_buf, None, action_ndx, reward, True)
 
-
-        # Makes a "prolonged" action and skip frames:
-        # skiprate = 4
-        # r = game.make_action(choice(actions), skiprate)
-
-        # The same could be achieved with:
-        # game.set_action(choice(actions))
-        # game.advance_action(skiprate)
-        # r = game.get_last_reward()
+        nn.learn_from_memory(memory, batch_size=64)
 
         # Prints state's game variables and reward.
         print("State %s" % state.__dict__)
-        print("Moves:", n)
         print("Action:", ["Left","Right","Shoot"][action_ndx])
         print("Total Reward:", calc.get_total_reward())
         print("KILLCOUNT: %s" % game.get_game_variable(GameVariable.KILLCOUNT))
         num_kills = game.get_game_variable(GameVariable.KILLCOUNT)
         print("=====================")
-
-        if sleep_time > 0:
-            sleep(sleep_time)
-
     # Check how the episode went.
     print("Episode finished.")
     print("Num Kills:", num_kills)
