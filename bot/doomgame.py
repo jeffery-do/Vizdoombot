@@ -2,12 +2,14 @@ from vizdoom import DoomGame
 from vizdoom import ScreenResolution
 from vizdoom import ScreenFormat
 from vizdoom import GameVariable
+from vizdoom import Mode
 
 def init(buttons):
+    print("init")
     game = DoomGame()
-    game.set_vizdoom_path("../../../ViZDoom/bin/vizdoom")
-    game.set_doom_game_path("../../../ViZDoom/scenarios/freedoom2.wad")
-    game.set_doom_scenario_path("../../../ViZDoom/scenarios/basic.wad")
+    game.set_vizdoom_path("../../ViZDoom/bin/vizdoom")
+    game.set_doom_game_path("../../ViZDoom/scenarios/freedoom2.wad")
+    game.set_doom_scenario_path("../../ViZDoom/scenarios/basic.wad")
     game.set_doom_map("map01")
     game.set_screen_resolution(ScreenResolution.RES_320X240)
     game.set_screen_format(ScreenFormat.RGB24)
@@ -54,3 +56,4 @@ def init(buttons):
     # Initialize the game. Further configuration won't take any effect from now on.
     # game.set_console_enabled(True)
     game.init()
+    return game

@@ -1,0 +1,50 @@
+=====================
+CHOSEN ACTION
+(False, True, False)
+State {}
+Total Reward: -29
+Num Kills: 65442
+Episode number: 99998
+Random move probability:  2e-05
+=====================
+CHOSEN ACTION
+(False, True, False)
+State {}
+Total Reward: -30
+Num Kills: 65442
+Episode number: 99998
+Random move probability:  2e-05
+=====================
+samples shape (64, 30, 45, 3)
+shape s1 batch (64, 30, 45, 3)
+Episode finished.
+Num Kills: 65442
+Total reward: -30
+************************
+Episode #100000
+CHOSEN ACTION
+(False, True, True)
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+KILLED ITTTTTTT
+State {}
+Total Reward: 899
+Num Kills: 65442
+Episode number: 99999
+Random move probability:  1e-05
+=====================
+samples shape (64, 30, 45, 3)
+shape s1 batch (64, 30, 45, 3)
+Episode finished.
+Num Kills: 65443
+Total reward: 899
+************************
+Saving to our_model.h5
+
+Process finished with exit code 0

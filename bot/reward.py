@@ -6,7 +6,7 @@ class RewardCalculator():
 
     def calc_reward(self, game):
         # Assume Action Performed
-        cur_reward = -5
+        cur_reward = -1
 
         # Kills
         cur_killcount = game.get_game_variable(GameVariable.KILLCOUNT)
